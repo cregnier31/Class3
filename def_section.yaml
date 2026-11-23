@@ -1,0 +1,306 @@
+EQU:
+    lonmin  : -180
+    lonmax  :  180
+    latmin  :    0
+    latmax  :    0
+    area    :  'All'
+Labrador_WOCE_A01W:
+    lonmin  : -56.4
+    lonmax  : -49.
+    latmin  :  53.
+    latmax  :  61.5
+    area    :  'Arctic'
+Fram_strait:
+    lonmin  : -22.
+    lonmax  : 15.
+    latmin  : 78.8
+    latmax  : 79.0
+    area    :  'Arctic'
+Barentssea:
+    lonmin  : 16.5
+    lonmax  : 21.5
+    latmin  : 69.6
+    latmax  : 77.
+    area    :  'Arctic'
+Labradorgreenland:
+    lonmin  : -57.
+    lonmax  : -43.
+    latmin  : 53.0
+    latmax  : 60.
+    area    :  'Arctic'
+Gibraltar:
+    lonmin  :   -5.
+    lonmax  :   -5.
+    latmin  :  34.
+    latmax  :  40.
+    area    :  'Mediterranean'
+Mediterranean_OE:
+    lonmin  :   0.
+    lonmax  :   0.
+    latmin  :  38.75
+    latmax  :  35.36
+    area    :  'Mediterranean'
+Sete-Tunis:
+    lonmin  :  10.
+    lonmax  :   3.
+    latmin  :  37.
+    latmax  :  43.
+    area    :  'Mediterranean'
+Cretan_Passage:
+    lonmin  :  25.
+    lonmax  :  25.
+    latmin  :  31.5
+    latmax  :  35.05
+    area    :  'Mediterranean'
+Gulf_de_Cadiz_WOCE_AR16D:
+    lonmin  :  -8.7
+    lonmax  :  -8.7
+    latmin  :  32.4
+    latmax  :  37.2
+    area    :  'Mediterranean'
+ECHV90W:
+    lonmin  : -90
+    lonmax  : -90
+    latmin  : -20
+    latmax  :   5
+    area    :  'Pacific'
+ECHV10S:
+    lonmin  : -90
+    lonmax  : -75
+    latmin  : -10
+    latmax  : -10
+    area    :  'Pacific'
+Bering_strait:
+    lonmin  : -173.0
+    lonmax  : -164.0
+    latmin  :  65.5
+    latmax  :  65.5
+    area    :  'Pacific'
+Pacific_137E:
+    lonmin  : 137.
+    lonmax  : 137.
+    latmin  :  -2.5
+    latmax  :  37.
+    area    :  'Pacific'
+Pacific-Equator:
+    lonmin  : 120.
+    lonmax  : -78.
+    latmin  :   0.
+    latmax  :   0.
+    area    :  'Pacific'
+Hawai-NewZealand:
+    lonmin  : -156.0
+    lonmax  :  175.
+    latmin  :   20.
+    latmax  :  -38.
+    area    :  'Pacific'
+PAC155W:
+    lonmin  : -155
+    lonmax  : -155
+    latmin  :  -90
+    latmax  :   90
+    area    :  'Pacific'
+Kuroshio:
+    lonmin  : 132.8
+    lonmax  : 137.
+    latmin  :  33.
+    latmax  :  26.
+    area    :  'Pacific'
+PACTEST:
+    lonmin  :  150
+    lonmax  : -150
+    latmin  :   20
+    latmax  :  -20
+    area    :  'Pacific'
+Indian-Equator:
+    lonmin  :  40.
+    lonmax  : 101.
+    latmin  :   0.
+    latmax  :   0.
+    area    :  'Indian'
+Indian_Fremantle-SuLabradorndraStait:
+    lonmin  : 105.7
+    lonmax  : 115.7
+    latmin  :  -6.
+    latmax  : -34.5
+    area    :  'Indian'
+Indian_Moonson_Reversal:
+    lonmin  :  80.
+    lonmax  :  80.
+    latmin  :   7.
+    latmax  : -15.
+    area    :  'Indian'
+Indian-Mada:
+    lonmin  :  39.
+    lonmax  :  49.
+    latmin  :  -5.
+    latmax  : -13.5
+    area    :  'Indian'
+Indonesiaw1:
+    lonmin  : 103.
+    lonmax  : 103.
+    latmin  : -1.
+    latmax  : 4.
+    area    : 'Indian'
+Indonesiaw2:
+    lonmin  : 113.
+    lonmax  : 118.
+    latmin  : -8.5
+    latmax  : -8.5
+    area    : 'Indian'
+Drake_Passage_Atlantic:
+    lonmin  : -68.0
+    lonmax  : -63.0
+    latmin  : -66.0
+    latmax  : -58.0
+    area    : 'Atlantic'
+Florida_strait:
+    lonmin  : -81.0
+    lonmax  : -77.0
+    latmin  :  26.0
+    latmax  :  28.0
+    area    :  'Atlantic'
+Hudson_strait:
+    lonmin  : -65.5
+    lonmax  : -65.5
+    latmin  :  59.
+    latmax  :  63.5
+    area    :  'Atlantic'
+English_channel:
+    lonmin  : -4.5
+    lonmax  : -5.0
+    latmin  :  48.
+    latmax  :  50.5
+    area    :  'Atlantic'
+NewfoundlandIberia:
+    lonmin  : -53.
+    lonmax  : -8.
+    latmin  :  43.
+    latmax  :  47.5
+    area    :  'Atlantic'
+Davis_strait:
+    lonmin  : -65.
+    lonmax  : -50.
+    latmin  :  66.
+    latmax  :  66
+    area    :  'Atlantic'
+Denmark_strait:
+    lonmin  : -35.
+    lonmax  : -16.
+    latmin  :  67.
+    latmax  :  66
+    area    :  'Atlantic'
+OVIDE_CLIVAR_A25:
+    lonmin  : -43.5
+    lonmax  :  -7.8
+    latmin  :  60.
+    latmax  :  38.
+    area    :  'Atlantic'
+Cuba-Florida:
+    lonmin  : -80.5
+    lonmax  : -80.5
+    latmin  :  22.5
+    latmax  :  25.5
+    area    :  'Atlantic'
+Agulhas_current:
+    lonmin  :  10.
+    lonmax  :  20.
+    latmin  : -40.
+    latmax  : -33.
+    area    :  'Atlantic'
+Atlantique_67W:
+    lonmin  : -67.
+    lonmax  : -67.
+    latmin  :  10.
+    latmax  :  46.
+    area    :  'Atlantic'
+Yucatan_strait_KANEC:
+    lonmin  : -87.3
+    lonmax  : -84.
+    latmin  :  21.
+    latmax  :  22.2
+    area    :  'Atlantic'
+Atlantic-Equator:
+    lonmin  : -51.
+    lonmax  :  12.
+    latmin  :   0.
+    latmax  :   0.
+    area    :  'Atlantic'
+0E WOCEA12_CLIVAR_A13:
+    lonmin  :   0.
+    lonmax  :   0.
+    latmin  :   6.5
+    latmax  : -71.
+    area    :  'Atlantic'
+Gulf_Guinea_6E:
+    lonmin  :   6.
+    lonmax  :   6.
+    latmin  :   5.5
+    latmax  : -28.
+    area    :  'Atlantic'
+Cross_equatorial Atlantic:
+    lonmin  : -23.
+    lonmax  : -23.
+    latmin  :  60.
+    latmax  : -60.
+    area    :  'Atlantic'
+Biscay_WOCE_AR12D:
+    lonmin  :  -4.7
+    lonmax  :  -8.
+    latmin  :  48.4
+    latmax  :  43.6
+    area    :  'Atlantic'
+NATL30W:
+    lonmin  : -30
+    lonmax  : -30
+    latmin  :  10
+    latmax  :  70
+    area    :  'Atlantic'
+Norge:
+    lonmin  : -1.1493
+    lonmax  : 5.3221
+    latmin  : 60.1530
+    latmax  : 60.3913
+    area    :  'Atlantic'
+Le_Cap-Antarctic:
+    lonmin  :  20.
+    lonmax  :  20.
+    latmin  : -70.
+    latmax  : -34.
+    area    :  'Antarctic'
+Tasmania-Antarctic:
+    lonmin  : 145.
+    lonmax  : 145.
+    latmin  : -68.
+    latmax  : -38.
+    area    :  'Antarctic'
+Hobart-DumontDurville:
+    lonmin  : 146.
+    lonmax  : 140.
+    latmin  : -42.8
+    latmax  : -66.4
+    area    :  'Antarctic'
+Drake_Passage:
+    lonmin  : -68.
+    lonmax  : -60.
+    latmin  : -55.
+    latmax  : -64.
+    area    :  'Antarctic'
+Madagascar_antarctica:
+    lonmin  : 46.
+    lonmax  : 46.
+    latmin  : -69.
+    latmax  : -22.
+    area    :  'Antarctic'
+Southafrica_antarctica:
+    lonmin  : 20.
+    lonmax  : 20.
+    latmin  : -69.5
+    latmax  : -30.
+    area    :  'Antarctic'
+Australia_antarctica:
+    lonmin  : 127.
+    lonmax  : 127.
+    latmin  : -25.
+    latmax  : -68.
+    area    :  'Antarctic'
