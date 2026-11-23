@@ -7,6 +7,11 @@ from datetime import datetime
 from pathlib import Path
 import re
 import sys
+
+# Reuse the neighbouring physical_stability checkout without installation.
+_shared_src = Path(__file__).resolve().parent.parent / "physical_stability" / "src"
+if (_shared_src / "physical_stability").is_dir():
+    sys.path.insert(0, str(_shared_src))
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
