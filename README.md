@@ -8,8 +8,10 @@ Uses the GLOENS 2D native curvilinear grid, a sampled great-circle path between 
 
 ```bash
 pip install -r requirements.txt
-pip install -e /path/to/physical_stability
+
 ```
+
+Keep Class3 and physical_stability as sibling directories (for example under /home/cregnier/Github). Class3 automatically adds the neighbouring physical_stability/src directory to its Python import path. No installation of physical_stability or manual PYTHONPATH configuration is required. Its reader dependencies must still be available in your Python environment.
 
 ## Remote 3D ensemble Zarr
 
