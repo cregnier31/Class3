@@ -309,7 +309,7 @@ def main():
     p.add_argument('--salinity-contour-step',type=float,default=.25)
     p.add_argument('--contour-color',default='colorbar-dark',help='Contour line color: colorbar-dark, colorbar, white, black or another Matplotlib color')
     p.add_argument('--contour-darkening',type=float,default=.4,choices=None,help='Fraction of RGB intensity removed in colorbar-dark mode (0 to 1)')
-    p.add_argument('--contour-max-linewidth',type=float,default=1.2)
+    p.add_argument('--contour-max-linewidth',type=float,default=3.0)
     p.add_argument('--contour-linewidth',type=float,default=.5)
     p.add_argument('--plot-only',action='store_true',help='Regenerate PNGs from existing monthly NetCDF files')
     p.add_argument('--output',default='monthly_results_same_lead')
