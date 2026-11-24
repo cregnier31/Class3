@@ -10,6 +10,7 @@ import numpy as np
 import xarray as xr
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
+from matplotlib.colors import ListedColormap
 from scipy.spatial import cKDTree
 from gloens_sections import read_sections, great_circle, to_xyz, safe_name
 from physical_stability.forecasts import (SYSTEMS, ENDPOINT, forecast_store,
@@ -156,6 +157,14 @@ def output(args,month,acc):
         raise FileNotFoundError(args.params)
     cmin=ast.literal_eval(cfg['dict']['cmin'])
     cmax=ast.literal_eval(cfg['dict']['cmax'])
+    cmap_name=args.cmap or ast.literal_eval(cfg['dict']['colormap'])['']
+    if cmap_name=='IDL_micom34':
+        rgb=np.loadtxt(Path(__file__).with_name('IDL_micom34.pal'))
+        if rgb.ndim!=2 or rgb.shape[1]!=3 or np.any((rgb<0)|(rgb>255)):
+            raise ValueError('Invalid IDL RGB palette')
+        cmap=ListedColormap(rgb/255.,name=cmap_name)
+    else:
+        cmap=plt.get_cmap(cmap_name)
     means={}
     for key,(template,total,count,dates) in acc.items():
         a=template.copy(data=np.divide(total,count,out=np.full(total.shape,np.nan),where=count>=args.min_runs))
@@ -196,7 +205,7 @@ def output(args,month,acc):
                     a=means[system,lead,name,var]
                     d=a.distance_km.values
                     z=a.depth.values
-                    cs=ax.contourf(d,z,np.ma.masked_invalid(a.values),levels=levels,cmap='RdBu_r',extend='both',corner_mask=False)
+                    cs=ax.contourf(d,z,np.ma.masked_invalid(a.values),levels=levels,cmap=cmap,extend='both',corner_mask=False)
                     ax.set_ylim(args.max_depth,args.min_depth)
                     ax.set_yscale('symlog',linthresh=20)
                     ticks=[v for v in (0,20,50,100,200,500,1000,2000,5000) if args.min_depth<=v<=args.max_depth]
@@ -225,6 +234,7 @@ def main():
     p.add_argument('--grid-file',default=DEFAULT_GLOENS_GRID)
     p.add_argument('--mask-dir')
     p.add_argument('--sections',default='def_section.yaml')
+    p.add_argument('--cmap',help='Override configured colormap, e.g. RdBu_r')
     p.add_argument('--params',default=str(Path(__file__).with_name('params_section.cfg')))
     p.add_argument('--section',action='append')
     p.add_argument('--month',required=True,help='YYYYMM initialization month')
