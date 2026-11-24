@@ -1,5 +1,7 @@
 """Monthly native-grid section means, one 2x2 figure per lead and variable."""
 import argparse
+import ast
+import configparser
 from datetime import datetime, timedelta
 import json
 from pathlib import Path
@@ -149,6 +151,11 @@ def add_locator(fig,lon,lat):
     globe.set_title('Section location',fontsize=8)
 
 def output(args,month,acc):
+    cfg=configparser.ConfigParser(interpolation=None)
+    if not cfg.read(args.params):
+        raise FileNotFoundError(args.params)
+    cmin=ast.literal_eval(cfg['dict']['cmin'])
+    cmax=ast.literal_eval(cfg['dict']['cmax'])
     means={}
     for key,(template,total,count,dates) in acc.items():
         a=template.copy(data=np.divide(total,count,out=np.full(total.shape,np.nan),where=count>=args.min_runs))
@@ -166,13 +173,22 @@ def output(args,month,acc):
                 print('No valid values:',name,var,flush=True)
                 continue
             bounds=args.temperature_range if var=='thetao' else args.salinity_range
-            low,high=bounds if bounds else (float(finite.min()),float(finite.max()))
-            if low==high: high=low+0.01
+            field='temperature' if var=='thetao' else 'salinity'
             step=args.temperature_step if var=='thetao' else args.salinity_step
-            low=np.floor(low/step)*step
-            high=np.ceil(high/step)*step
-            levels=np.arange(low,high+step*.5,step)
-            if len(levels)<2: levels=np.array([low,low+step])
+            if step<=0: raise ValueError('Contour step must be positive')
+            if bounds:
+                low,high=bounds
+            elif field in cmin.get(name,{}) and field in cmax.get(name,{}):
+                low,high=cmin[name][field],cmax[name][field]
+            else:
+                low=np.floor(finite.min()/step)*step
+                high=np.ceil(finite.max()/step)*step
+                print(f'WARNING: no configured limits for {name} {field}; using data range',flush=True)
+                if low==high: high=low+step
+            if high<=low: raise ValueError(f'Invalid color limits for {name} {field}')
+            levels=np.r_[low+np.arange(int(np.ceil((high-low)/step)))*step,high]
+            levels=levels[np.r_[True,np.diff(levels)>1e-9]]
+            print(f'Color limits {name} {field}: {low:g}, {high:g}',flush=True)
             for lead in args.leads:
                 fig,axes=plt.subplots(2,2,figsize=(16,12))
                 fig.subplots_adjust(left=.07,right=.86,bottom=.15,top=.91,wspace=.25,hspace=.60)
@@ -209,6 +225,7 @@ def main():
     p.add_argument('--grid-file',default=DEFAULT_GLOENS_GRID)
     p.add_argument('--mask-dir')
     p.add_argument('--sections',default='def_section.yaml')
+    p.add_argument('--params',default=str(Path(__file__).with_name('params_section.cfg')))
     p.add_argument('--section',action='append')
     p.add_argument('--month',required=True,help='YYYYMM initialization month')
     p.add_argument('--dates',nargs='+',help='Explicit GLOENS initialization dates YYYYMMDD')
