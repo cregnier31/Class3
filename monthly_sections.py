@@ -44,7 +44,7 @@ def extract(ds, route, mask, var):
         'distance_km':('station',d)},attrs=dict(ds[var].attrs),name=var)
 
 def preflight(args, dates):
-    """Pair Thursday GLOENS runs with previous-day remote stores by valid day."""
+    """Pair weekly runs at equal forecast lead indices."""
     pairs=[]
     for date in dates:
         remote=(datetime.strptime(date,'%Y%m%d')-timedelta(days=1)).strftime('%Y%m%d')
@@ -61,12 +61,13 @@ def preflight(args, dates):
                 if system=='GLOENS': continue
                 with open_cloudferro(forecast_store(system,remote),endpoint=args.endpoint,anonymous=not args.authenticated) as raw:
                     times=np.asarray(raw.time.values)
-                    for lead,target in targets.items():
-                        idx=np.flatnonzero(times.astype('datetime64[D]')==target)
-                        if len(idx)!=1:
-                            raise ValueError(f'{system}: expected one valid time on {target}')
-                        i=int(idx[0])
-                        plan[system,lead]=(remote,i,str(times[i]))
+                    for lead in args.leads:
+                        if not 0<=lead<len(times):
+                            raise ValueError(f'{system}: unavailable lead {lead}')
+                        target=np.datetime64(datetime.strptime(remote,'%Y%m%d'),'D')+np.timedelta64(lead,'D')
+                        if np.datetime64(times[lead],'D')!=target:
+                            raise ValueError(f'{system}: unexpected valid day at lead {lead}')
+                        plan[system,lead]=(remote,lead,str(times[lead]))
         except (FileNotFoundError, KeyError, ValueError) as exc:
             print(f'SKIP weekly pair {date}: {exc}',flush=True)
             continue
@@ -155,7 +156,7 @@ def output(args,month,acc):
     means={}
     for key,(template,total,count,dates) in acc.items():
         a=template.copy(data=np.divide(total,count,out=np.full(total.shape,np.nan),where=count>=args.min_runs))
-        a.attrs.update(initialization_month=month,initialization_dates=','.join(d['initialization_date'] for d in dates),run_count=len(dates), actual_lead_indices=','.join(str(d['lead_index']) for d in dates), valid_times=','.join(d['valid_time'] for d in dates), temporal_alignment='Same calendar day; no time interpolation', reference_lead_index=key[1], run_metadata=json.dumps(dates))
+        a.attrs.update(initialization_month=month,initialization_dates=','.join(d['initialization_date'] for d in dates),run_count=len(dates), actual_lead_indices=','.join(str(d['lead_index']) for d in dates), valid_times=','.join(d['valid_time'] for d in dates), temporal_alignment='Same forecast lead index; valid dates may differ', reference_lead_index=key[1], run_metadata=json.dumps(dates))
         means[key]=a
         system,lead,name,var=key
         folder=Path(args.output)/month/safe_name(name)
@@ -253,7 +254,7 @@ def plot_means(args,month,means):
                 cb.ax.yaxis.label.set_size(16)
                 cb.ax.yaxis.label.set_weight('bold')
                 add_locator(fig,a.longitude.values,a.latitude.values)
-                fig.suptitle(f'{name} | {var} | {month} | GLOENS lead {lead} | same valid day',fontweight='bold',fontsize=22)
+                fig.suptitle(f'{name} | {var} | {month} | Forecast lead D+{lead} | same forecast age',fontweight='bold',fontsize=22)
                 fig.savefig(Path(args.output)/month/safe_name(name)/f'{var}_lead{lead:03d}_multimodel.png',dpi=200)
                 plt.close(fig)
 
@@ -269,6 +270,8 @@ def load_monthly_means(args,sections):
                         raise FileNotFoundError(f'Missing monthly section: {path}')
                     with xr.open_dataset(path) as ds:
                         a=ds[var].load()
+                    if a.attrs.get('temporal_alignment')!='Same forecast lead index; valid dates may differ' or any(int(i)!=lead for i in a.attrs.get('actual_lead_indices','-1').split(',')):
+                        raise ValueError(f'{path}: not computed at equal forecast leads; recompute monthly sections')
                     means[system,lead,name,var]=a
     return means
 
@@ -301,7 +304,7 @@ def main():
     p.add_argument('--salinity-contour-step',type=float,default=.5)
     p.add_argument('--contour-linewidth',type=float,default=.5)
     p.add_argument('--plot-only',action='store_true',help='Regenerate PNGs from existing monthly NetCDF files')
-    p.add_argument('--output',default='monthly_results')
+    p.add_argument('--output',default='monthly_results_same_lead')
     args=p.parse_args()
     if args.plot_only:
         sections=read_sections(args.sections)
