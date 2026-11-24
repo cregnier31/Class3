@@ -72,14 +72,14 @@ def great_circle(lon0,lat0,lon1,lat1,spacing_km=25.):
     return np.rad2deg(np.arctan2(xyz[:,1],xyz[:,0])),np.rad2deg(np.arctan2(xyz[:,2],np.hypot(xyz[:,0],xyz[:,1])))
 
 def native_indices(lon2d,lat2d,wet2d,slon,slat,max_distance_km):
-    valid=np.isfinite(lon2d)&np.isfinite(lat2d)&wet2d
+    valid=np.isfinite(lon2d)&np.isfinite(lat2d)
     if not valid.any():
-        raise ValueError('No wet grid points')
+        raise ValueError('No valid grid coordinates')
     cells=np.argwhere(valid)
     chord,nearest=cKDTree(to_xyz(lon2d[valid],lat2d[valid])).query(to_xyz(slon,slat))
     error=6371*2*np.arcsin(np.clip(chord/2,0,1))
     if np.any(error>max_distance_km):
-        raise ValueError(f'Route exceeds wet-cell tolerance: {error.max():.1f} km')
+        raise ValueError(f'Route exceeds native-grid tolerance: {error.max():.1f} km')
     yx=cells[nearest]
     yx=yx[np.r_[True,np.any(yx[1:]!=yx[:-1],axis=1)]]
     if len(yx)<2:
@@ -213,6 +213,8 @@ def run(args):
                         elif args.ensemble=='members':
                             raise ValueError('Input lacks ensemble dimension')
                         sec=section_extract(da,depth,lon,lat,y,x,d)
+                        if mask is not None and mask.ndim==2:
+                            sec[var]=sec[var].where(xr.DataArray(mask[y,x],dims=('station',)))
                         if mask is not None and mask.ndim==3:
                             if mask.shape[0]!=sec.sizes['depth']:
                                 raise ValueError('Mask depth mismatch')
