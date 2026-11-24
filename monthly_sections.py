@@ -254,7 +254,7 @@ def plot_means(args,month,means):
                 cb.ax.yaxis.label.set_size(16)
                 cb.ax.yaxis.label.set_weight('bold')
                 add_locator(fig,a.longitude.values,a.latitude.values,name)
-                fig.suptitle(f'{name} | {var} | {month} | Forecast lead D+{lead} | same forecast age',fontweight='bold',fontsize=22)
+                fig.suptitle(f'{name} | {var} | {month} | Forecast lead D+{lead} | same leadtime',fontweight='bold',fontsize=22)
                 fig.savefig(Path(args.output)/month/safe_name(name)/f'{var}_lead{lead:03d}_multimodel.png',dpi=200)
                 plt.close(fig)
 
@@ -300,7 +300,7 @@ def main():
     p.add_argument('--endpoint',default=ENDPOINT)
     p.add_argument('--authenticated',action='store_true')
     p.add_argument('--no-contours',action='store_true',help='Disable contour lines')
-    p.add_argument('--temperature-contour-step',type=float,default=1.)
+    p.add_argument('--temperature-contour-step',type=float,default=2.)
     p.add_argument('--salinity-contour-step',type=float,default=.5)
     p.add_argument('--contour-color',default='white',help='Contour line color, e.g. white or black')
     p.add_argument('--contour-linewidth',type=float,default=.5)
