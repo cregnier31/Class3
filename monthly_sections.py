@@ -234,7 +234,7 @@ def plot_means(args,month,means):
                                         line_colors[:,:3]*=1-np.clip(args.contour_darkening,0,1)
                                 ax.contour(d,z,np.ma.masked_invalid(a.values),levels=line_levels,
                                            colors=line_colors,linewidths=args.contour_linewidth+(args.contour_max_linewidth-args.contour_linewidth)*np.clip((line_levels-low)/max(high-low,1e-12),0,1),
-                                           linestyles='solid',alpha=1.,corner_mask=False)
+                                           linestyles=args.contour_linestyle,alpha=1.,corner_mask=False)
                     ax.set_ylim(args.max_depth,args.min_depth)
                     ax.set_yscale('symlog',linthresh=20)
                     ticks=[v for v in (0,20,50,100,200,500,1000,2000,5000) if args.min_depth<=v<=args.max_depth]
@@ -308,6 +308,7 @@ def main():
     p.add_argument('--temperature-contour-step',type=float,default=2.)
     p.add_argument('--salinity-contour-step',type=float,default=.25)
     p.add_argument('--contour-color',default='colorbar-dark',help='Contour line color: colorbar-dark, colorbar, white, black or another Matplotlib color')
+    p.add_argument('--contour-linestyle',default='dashed',choices=['solid','dashed','dotted','dashdot'])
     p.add_argument('--contour-darkening',type=float,default=.4,choices=None,help='Fraction of RGB intensity removed in colorbar-dark mode (0 to 1)')
     p.add_argument('--contour-max-linewidth',type=float,default=3.0)
     p.add_argument('--contour-linewidth',type=float,default=.5)
