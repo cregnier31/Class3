@@ -152,6 +152,18 @@ def add_locator(fig,lon,lat):
     globe.set_title('Section location',fontsize=8)
 
 def output(args,month,acc):
+    means={}
+    for key,(template,total,count,dates) in acc.items():
+        a=template.copy(data=np.divide(total,count,out=np.full(total.shape,np.nan),where=count>=args.min_runs))
+        a.attrs.update(initialization_month=month,initialization_dates=','.join(d['initialization_date'] for d in dates),run_count=len(dates), actual_lead_indices=','.join(str(d['lead_index']) for d in dates), valid_times=','.join(d['valid_time'] for d in dates), temporal_alignment='Same calendar day; no time interpolation', reference_lead_index=key[1], run_metadata=json.dumps(dates))
+        means[key]=a
+        system,lead,name,var=key
+        folder=Path(args.output)/month/safe_name(name)
+        folder.mkdir(parents=True,exist_ok=True)
+        xr.Dataset({var:a,'valid_run_count':(('depth','station'),count)}).to_netcdf(folder/f'{system}_{var}_lead{lead:03d}.nc')
+    plot_means(args,month,means)
+
+def plot_means(args,month,means):
     cfg=configparser.ConfigParser(interpolation=None)
     if not cfg.read(args.params):
         raise FileNotFoundError(args.params)
@@ -165,15 +177,6 @@ def output(args,month,acc):
         cmap=ListedColormap(rgb/255.,name=cmap_name)
     else:
         cmap=plt.get_cmap(cmap_name)
-    means={}
-    for key,(template,total,count,dates) in acc.items():
-        a=template.copy(data=np.divide(total,count,out=np.full(total.shape,np.nan),where=count>=args.min_runs))
-        a.attrs.update(initialization_month=month,initialization_dates=','.join(d['initialization_date'] for d in dates),run_count=len(dates), actual_lead_indices=','.join(str(d['lead_index']) for d in dates), valid_times=','.join(d['valid_time'] for d in dates), temporal_alignment='Same calendar day; no time interpolation', reference_lead_index=key[1], run_metadata=json.dumps(dates))
-        means[key]=a
-        system,lead,name,var=key
-        folder=Path(args.output)/month/safe_name(name)
-        folder.mkdir(parents=True,exist_ok=True)
-        xr.Dataset({var:a,'valid_run_count':(('depth','station'),count)}).to_netcdf(folder/f'{system}_{var}_lead{lead:03d}.nc')
     for name in sorted({k[2] for k in means}):
         for var in args.variables:
             all_arrays=[a.values for k,a in means.items() if k[2:]==(name,var)]
@@ -218,7 +221,7 @@ def output(args,month,acc):
                     sec.set_xticks(d[idx],labels=[geo(a.latitude.values[i],'N','S') for i in idx],fontsize=8)
                     sec.set_xlabel('Latitude')
                     ax.set_ylabel('Depth (m)')
-                    ax.set_title(f'{system} | {a.attrs["run_count"]} runs | index {a.attrs["actual_lead_indices"].split(",")[0]}',fontweight='bold')
+                    ax.set_title(f'{system} | {a.attrs["run_count"]} runs | index {a.attrs.get("actual_lead_indices",str(lead)).split(",")[0]}',fontweight='bold')
                     good=a.values[np.isfinite(a.values)]
                     if good.size:
                         ax.text(.5,-.34,f'Min {good.min():.2f}   Mean {good.mean():.2f}   Max {good.max():.2f}',transform=ax.transAxes,ha='center',fontsize=9)
@@ -227,6 +230,21 @@ def output(args,month,acc):
                 fig.suptitle(f'{name} | {var} | {month} | GLOENS lead {lead} | same valid day',fontweight='bold',fontsize=16)
                 fig.savefig(Path(args.output)/month/safe_name(name)/f'{var}_lead{lead:03d}_multimodel.png',dpi=160)
                 plt.close(fig)
+
+def load_monthly_means(args,sections):
+    means={}
+    for name in sections:
+        folder=Path(args.output)/args.month/safe_name(name)
+        for system in SYSTEMS:
+            for lead in args.leads:
+                for var in args.variables:
+                    path=folder/f'{system}_{var}_lead{lead:03d}.nc'
+                    if not path.is_file():
+                        raise FileNotFoundError(f'Missing monthly section: {path}')
+                    with xr.open_dataset(path) as ds:
+                        a=ds[var].load()
+                    means[system,lead,name,var]=a
+    return means
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
@@ -252,8 +270,14 @@ def main():
     p.add_argument('--salinity-range',nargs=2,type=float)
     p.add_argument('--endpoint',default=ENDPOINT)
     p.add_argument('--authenticated',action='store_true')
+    p.add_argument('--plot-only',action='store_true',help='Regenerate PNGs from existing monthly NetCDF files')
     p.add_argument('--output',default='monthly_results')
     args=p.parse_args()
+    if args.plot_only:
+        sections=read_sections(args.sections)
+        if args.section: sections={n:sections[n] for n in args.section}
+        plot_means(args,args.month,load_monthly_means(args,sections))
+        return
     dates=sorted(set(args.dates or [m.group(1) for f in Path(args.npy_dir).glob(f'glo4-ens50_ensmean_thetao_leadtime_{args.leads[0]:03d}_{args.month}*.npy') if (m:=re.search(r'_(\d{8})\.npy$',f.name))]))
     if len(dates)<args.min_runs or any(not d.startswith(args.month) for d in dates):
         p.error('Insufficient initialization dates or dates outside month')
