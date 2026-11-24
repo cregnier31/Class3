@@ -135,7 +135,7 @@ def process(args, pairs, sections):
 def geo(v,positive,negative):
     return f'{abs(v):.0f}°{positive if v>=0 else negative}'
 
-def add_locator(fig,lon,lat):
+def add_locator(fig,lon,lat,name):
     import cartopy.crs as ccrs
     import cartopy.feature as cfeature
     xyz=to_xyz(lon,lat).mean(axis=0)
@@ -150,7 +150,7 @@ def add_locator(fig,lon,lat):
     globe.add_feature(cfeature.LAND.with_scale('110m'),facecolor='#e4dfc5')
     globe.coastlines(resolution='110m',linewidth=.35)
     globe.plot(lon,lat,color='red',linewidth=1.6,transform=ccrs.Geodetic())
-    globe.set_title('Section location',fontsize=13)
+    globe.set_title(name,fontsize=13)
 
 def output(args,month,acc):
     means={}
@@ -228,7 +228,7 @@ def plot_means(args,month,means):
                             line_levels=line_levels[(line_levels>values.min())&(line_levels<values.max())]
                             if line_levels.size:
                                 ax.contour(d,z,np.ma.masked_invalid(a.values),levels=line_levels,
-                                           colors='black',linewidths=args.contour_linewidth,
+                                           colors=args.contour_color,linewidths=args.contour_linewidth,
                                            linestyles='solid',alpha=.8,corner_mask=False)
                     ax.set_ylim(args.max_depth,args.min_depth)
                     ax.set_yscale('symlog',linthresh=20)
@@ -253,7 +253,7 @@ def plot_means(args,month,means):
                 cb.ax.tick_params(labelsize=14)
                 cb.ax.yaxis.label.set_size(16)
                 cb.ax.yaxis.label.set_weight('bold')
-                add_locator(fig,a.longitude.values,a.latitude.values)
+                add_locator(fig,a.longitude.values,a.latitude.values,name)
                 fig.suptitle(f'{name} | {var} | {month} | Forecast lead D+{lead} | same forecast age',fontweight='bold',fontsize=22)
                 fig.savefig(Path(args.output)/month/safe_name(name)/f'{var}_lead{lead:03d}_multimodel.png',dpi=200)
                 plt.close(fig)
@@ -299,9 +299,10 @@ def main():
     p.add_argument('--salinity-range',nargs=2,type=float)
     p.add_argument('--endpoint',default=ENDPOINT)
     p.add_argument('--authenticated',action='store_true')
-    p.add_argument('--no-contours',action='store_true',help='Disable black contour lines')
+    p.add_argument('--no-contours',action='store_true',help='Disable contour lines')
     p.add_argument('--temperature-contour-step',type=float,default=1.)
     p.add_argument('--salinity-contour-step',type=float,default=.5)
+    p.add_argument('--contour-color',default='white',help='Contour line color, e.g. white or black')
     p.add_argument('--contour-linewidth',type=float,default=.5)
     p.add_argument('--plot-only',action='store_true',help='Regenerate PNGs from existing monthly NetCDF files')
     p.add_argument('--output',default='monthly_results_same_lead')
