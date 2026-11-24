@@ -7,6 +7,7 @@ import re
 import numpy as np
 import xarray as xr
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 from scipy.spatial import cKDTree
 from gloens_sections import read_sections, great_circle, to_xyz, safe_name
 from physical_stability.forecasts import (SYSTEMS, ENDPOINT, forecast_store,
@@ -130,6 +131,23 @@ def process(args, pairs, sections):
 def geo(v,positive,negative):
     return f'{abs(v):.0f}°{positive if v>=0 else negative}'
 
+def add_locator(fig,lon,lat):
+    import cartopy.crs as ccrs
+    import cartopy.feature as cfeature
+    xyz=to_xyz(lon,lat).mean(axis=0)
+    if np.linalg.norm(xyz)<1e-6:
+        center_lon,center_lat=float(lon[len(lon)//2]),float(lat[len(lat)//2])
+    else:
+        center_lon=np.degrees(np.arctan2(xyz[1],xyz[0]))
+        center_lat=np.degrees(np.arctan2(xyz[2],np.hypot(xyz[0],xyz[1])))
+    globe=fig.add_axes([.89,.025,.095,.13],projection=ccrs.Orthographic(center_lon,center_lat))
+    globe.set_global()
+    globe.add_feature(cfeature.OCEAN.with_scale('110m'),facecolor='#a6cee3')
+    globe.add_feature(cfeature.LAND.with_scale('110m'),facecolor='#e4dfc5')
+    globe.coastlines(resolution='110m',linewidth=.35)
+    globe.plot(lon,lat,color='red',linewidth=1.6,transform=ccrs.Geodetic())
+    globe.set_title('Section location',fontsize=8)
+
 def output(args,month,acc):
     means={}
     for key,(template,total,count,dates) in acc.items():
@@ -150,27 +168,37 @@ def output(args,month,acc):
             bounds=args.temperature_range if var=='thetao' else args.salinity_range
             low,high=bounds if bounds else (float(finite.min()),float(finite.max()))
             if low==high: high=low+0.01
-            levels=np.linspace(low,high,21)
+            step=args.temperature_step if var=='thetao' else args.salinity_step
+            low=np.floor(low/step)*step
+            high=np.ceil(high/step)*step
+            levels=np.arange(low,high+step*.5,step)
+            if len(levels)<2: levels=np.array([low,low+step])
             for lead in args.leads:
-                fig,axes=plt.subplots(2,2,figsize=(15,10),layout='constrained')
+                fig,axes=plt.subplots(2,2,figsize=(16,12))
+                fig.subplots_adjust(left=.07,right=.86,bottom=.15,top=.91,wspace=.25,hspace=.60)
                 for ax,system in zip(axes.flat,SYSTEMS):
                     a=means[system,lead,name,var]
                     d=a.distance_km.values
                     z=a.depth.values
                     cs=ax.contourf(d,z,np.ma.masked_invalid(a.values),levels=levels,cmap='RdBu_r',extend='both',corner_mask=False)
-                    ax.set_ylim(min(args.max_depth,float(z.max())),0)
+                    ax.set_ylim(args.max_depth,args.min_depth)
                     ax.set_yscale('symlog',linthresh=20)
-                    ticks=[v for v in (0,20,50,100,200,500,1000,2000,5000) if v<=min(args.max_depth,z.max())]
+                    ticks=[v for v in (0,20,50,100,200,500,1000,2000,5000) if args.min_depth<=v<=args.max_depth]
                     ax.set_yticks(ticks,labels=[str(v) for v in ticks])
                     idx=np.linspace(0,len(d)-1,6).astype(int)
-                    ax.set_xticks(d[idx],labels=[geo(a.longitude.values[i],'E','W')+' / '+geo(a.latitude.values[i],'N','S') for i in idx],fontsize=8)
-                    ax.set_xlabel('Longitude / latitude')
+                    ax.set_xticks(d[idx],labels=[geo(a.longitude.values[i],'E','W') for i in idx],fontsize=8)
+                    ax.set_xlabel('Longitude')
+                    sec=ax.secondary_xaxis('bottom')
+                    sec.spines['bottom'].set_position(('outward',32))
+                    sec.set_xticks(d[idx],labels=[geo(a.latitude.values[i],'N','S') for i in idx],fontsize=8)
+                    sec.set_xlabel('Latitude')
                     ax.set_ylabel('Depth (m)')
                     ax.set_title(f'{system} | {a.attrs["run_count"]} runs | index {a.attrs["actual_lead_indices"].split(",")[0]}',fontweight='bold')
                     good=a.values[np.isfinite(a.values)]
                     if good.size:
-                        ax.text(.5,-.20,f'Min {good.min():.2f}   Mean {good.mean():.2f}   Max {good.max():.2f}',transform=ax.transAxes,ha='center',fontsize=9)
-                fig.colorbar(cs,ax=axes.ravel().tolist(),label='Temperature (°C)' if var=='thetao' else 'Salinity',shrink=.85)
+                        ax.text(.5,-.34,f'Min {good.min():.2f}   Mean {good.mean():.2f}   Max {good.max():.2f}',transform=ax.transAxes,ha='center',fontsize=9)
+                fig.colorbar(cs,ax=axes.ravel().tolist(),label='Temperature (°C)' if var=='thetao' else 'Salinity',shrink=.70,ticks=levels[::3],format=mticker.FormatStrFormatter('%g'))
+                add_locator(fig,a.longitude.values,a.latitude.values)
                 fig.suptitle(f'{name} | {var} | {month} | GLOENS lead {lead} | same valid day',fontweight='bold',fontsize=16)
                 fig.savefig(Path(args.output)/month/safe_name(name)/f'{var}_lead{lead:03d}_multimodel.png',dpi=160)
                 plt.close(fig)
@@ -190,6 +218,9 @@ def main():
     p.add_argument('--spacing-km',type=float,default=25)
     p.add_argument('--max-distance-km',type=float,default=150)
     p.add_argument('--max-depth',type=float,default=2000)
+    p.add_argument('--min-depth',type=float,default=0)
+    p.add_argument('--temperature-step',type=float,default=2)
+    p.add_argument('--salinity-step',type=float,default=.2)
     p.add_argument('--temperature-range',nargs=2,type=float)
     p.add_argument('--salinity-range',nargs=2,type=float)
     p.add_argument('--endpoint',default=ENDPOINT)
