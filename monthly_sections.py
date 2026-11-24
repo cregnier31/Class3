@@ -286,7 +286,7 @@ def main():
     p.add_argument('--grid-file',default=DEFAULT_GLOENS_GRID)
     p.add_argument('--mask-dir')
     p.add_argument('--sections',default='def_section.yaml')
-    p.add_argument('--cmap',help='Override configured colormap, e.g. RdBu_r')
+    p.add_argument('--cmap',default='jet',help='Colormap (default jet; override with another Matplotlib colormap)')
     p.add_argument('--params',default=str(Path(__file__).with_name('params_section.cfg')))
     p.add_argument('--section',action='append')
     p.add_argument('--month',required=True,help='YYYYMM initialization month')
