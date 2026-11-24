@@ -217,6 +217,18 @@ def plot_means(args,month,means):
                     d=a.distance_km.values
                     z=a.depth.values
                     cs=ax.contourf(d,z,np.ma.masked_invalid(a.values),levels=levels,cmap=cmap,extend='both',corner_mask=False)
+                    if not args.no_contours:
+                        line_step=args.temperature_contour_step if var=='thetao' else args.salinity_contour_step
+                        if line_step<=0:
+                            raise ValueError('Contour line interval must be positive')
+                        values=a.values[np.isfinite(a.values)]
+                        if values.size:
+                            line_levels=np.arange(np.ceil(low/line_step),np.floor(high/line_step)+1)*line_step
+                            line_levels=line_levels[(line_levels>values.min())&(line_levels<values.max())]
+                            if line_levels.size:
+                                ax.contour(d,z,np.ma.masked_invalid(a.values),levels=line_levels,
+                                           colors='black',linewidths=args.contour_linewidth,
+                                           linestyles='solid',alpha=.8,corner_mask=False)
                     ax.set_ylim(args.max_depth,args.min_depth)
                     ax.set_yscale('symlog',linthresh=20)
                     ticks=[v for v in (0,20,50,100,200,500,1000,2000,5000) if args.min_depth<=v<=args.max_depth]
@@ -284,6 +296,10 @@ def main():
     p.add_argument('--salinity-range',nargs=2,type=float)
     p.add_argument('--endpoint',default=ENDPOINT)
     p.add_argument('--authenticated',action='store_true')
+    p.add_argument('--no-contours',action='store_true',help='Disable black contour lines')
+    p.add_argument('--temperature-contour-step',type=float,default=1.)
+    p.add_argument('--salinity-contour-step',type=float,default=.5)
+    p.add_argument('--contour-linewidth',type=float,default=.5)
     p.add_argument('--plot-only',action='store_true',help='Regenerate PNGs from existing monthly NetCDF files')
     p.add_argument('--output',default='monthly_results')
     args=p.parse_args()
