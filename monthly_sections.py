@@ -228,7 +228,7 @@ def plot_means(args,month,means):
                             line_levels=line_levels[(line_levels>values.min())&(line_levels<values.max())]
                             if line_levels.size:
                                 ax.contour(d,z,np.ma.masked_invalid(a.values),levels=line_levels,
-                                           colors=args.contour_color,linewidths=args.contour_linewidth+(args.contour_max_linewidth-args.contour_linewidth)*np.clip((line_levels-low)/max(high-low,1e-12),0,1),
+                                           colors=cs.cmap(cs.norm(line_levels)) if args.contour_color=='colorbar' else args.contour_color,linewidths=args.contour_linewidth+(args.contour_max_linewidth-args.contour_linewidth)*np.clip((line_levels-low)/max(high-low,1e-12),0,1),
                                            linestyles='solid',alpha=.8,corner_mask=False)
                     ax.set_ylim(args.max_depth,args.min_depth)
                     ax.set_yscale('symlog',linthresh=20)
@@ -302,7 +302,7 @@ def main():
     p.add_argument('--no-contours',action='store_true',help='Disable contour lines')
     p.add_argument('--temperature-contour-step',type=float,default=2.)
     p.add_argument('--salinity-contour-step',type=float,default=.25)
-    p.add_argument('--contour-color',default='white',help='Contour line color, e.g. white or black')
+    p.add_argument('--contour-color',default='colorbar',help='Contour line color: colorbar, white, black or another Matplotlib color')
     p.add_argument('--contour-max-linewidth',type=float,default=1.2)
     p.add_argument('--contour-linewidth',type=float,default=.5)
     p.add_argument('--plot-only',action='store_true',help='Regenerate PNGs from existing monthly NetCDF files')
