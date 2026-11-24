@@ -1,5 +1,7 @@
 """Monthly native-grid section means, one 2x2 figure per lead and variable."""
 import argparse
+from concurrent.futures import ProcessPoolExecutor
+from multiprocessing import get_context
 import ast
 import configparser
 from datetime import datetime, timedelta
@@ -82,10 +84,10 @@ def preflight(args, dates):
         raise ValueError(f'Only {len(pairs)} complete weekly pairs; need {args.min_runs}')
     return pairs
 
-def process(args, pairs, sections):
+def process_models(args, pairs, sections, systems):
     # Accumulate only extracted sections, not global monthly fields.
     acc={}
-    for system in SYSTEMS:
+    for system in systems:
         maskpath=Path(args.mask_dir)/MASK_PATHS[system].name if args.mask_dir else MASK_PATHS[system]
         with xr.open_dataset(maskpath) as md:
             mask=md[next(n for n in MASK_CANDIDATES if n in md)].squeeze(drop=True)
@@ -132,6 +134,16 @@ def process(args, pairs, sections):
                             consume(raw.isel(time=slice(index,index+1)),date,lead,index,stamp)
     return acc
 
+def process(args,pairs,sections):
+    if args.workers==1:
+        return process_models(args,pairs,sections,SYSTEMS)
+    acc={}
+    with ProcessPoolExecutor(max_workers=min(args.workers,len(SYSTEMS)),mp_context=get_context('spawn')) as pool:
+        jobs=[pool.submit(process_models,args,pairs,sections,(system,)) for system in SYSTEMS]
+        for job in jobs:
+            acc.update(job.result())
+    return acc
+
 def geo(v,positive,negative):
     return f'{abs(v):.0f}°{positive if v>=0 else negative}'
 
@@ -165,6 +177,19 @@ def output(args,month,acc):
     plot_means(args,month,means)
 
 def plot_means(args,month,means):
+    if args.plot_workers==1:
+        return plot_sections(args,month,means)
+    # Initialize Cartopy assets once before concurrent rendering.
+    from cartopy.io import shapereader
+    for feature in ('land','ocean','coastline'):
+        shapereader.natural_earth(resolution='110m',category='physical',name=feature)
+    names=sorted({k[2] for k in means})
+    with ProcessPoolExecutor(max_workers=min(args.plot_workers,len(names)),mp_context=get_context('spawn')) as pool:
+        jobs=[pool.submit(plot_sections,args,month,{k:a for k,a in means.items() if k[2]==name}) for name in names]
+        for job in jobs:
+            job.result()
+
+def plot_sections(args,month,means):
     section_configs=read_sections(args.sections)
     cfg=configparser.ConfigParser(interpolation=None)
     if not cfg.read(args.params):
@@ -316,7 +341,11 @@ def main():
     p.add_argument('--contour-linewidth',type=float,default=.5)
     p.add_argument('--plot-only',action='store_true',help='Regenerate PNGs from existing monthly NetCDF files')
     p.add_argument('--output',default='monthly_results_same_lead')
+    p.add_argument('--workers',type=int,default=4,help='Parallel model processes (1 for sequential)')
+    p.add_argument('--plot-workers',type=int,default=8,help='Parallel section plotting processes (1 for sequential)')
     args=p.parse_args()
+    if args.workers<1 or args.plot_workers<1:
+        p.error('Worker counts must be positive')
     if args.plot_only:
         sections=read_sections(args.sections)
         if args.section: sections={n:sections[n] for n in args.section}
