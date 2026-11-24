@@ -2,7 +2,7 @@
 
 Produces one vertical section per name, variable, and lead as PNG and NetCDF. Each NetCDF contains longitude/latitude, distance along section (km), and original T-grid `(grid_y, grid_x)` indices.
 
-Uses the GLOENS 2D native curvilinear grid, a sampled great-circle path between the section endpoints, and **nearest native wet T cells**. This is a tracer transect, **not a grid-face transport or flux integration**. No interpolation across dry points is performed. Land crossings can cause large jumps in the chosen path: set a suitable `--max-distance-km` and use the native T-mask (`--mask-file`) to guard against inappropriate snap-to-coast paths. A pointwise section is not a conservative cross-sectional flux.
+Uses the GLOENS 2D native curvilinear grid and nearest native T cells, including land. Zonal and meridional sections preserve their coordinate; other sections follow a great circle. Supply the native T-mask (--mask-file) to mask land and below-bottom cells. Continental crossings remain in the section as missing values, not displaced ocean samples. This is a tracer transect, not a conservative transport integration.
 
 ## Install
 
@@ -41,7 +41,7 @@ python gloens_sections.py \
   --output sections_out --skip-invalid
 ```
 
-This reuses `physical_stability.gloens_npy.load_gloens_mean`; when the domain grid lacks depth, that module uses its configured static meshmask for 1D depth coordinates. Precomputed `.npy` is **ensemble mean only**. `--skip-invalid` skips sections that fall outside the grid, traverse land too far from wet cells, or have missing values. Without it, those sections raise an error.
+This reuses `physical_stability.gloens_npy.load_gloens_mean`; when the domain grid lacks depth, that module uses its configured static meshmask for 1D depth coordinates. Precomputed `.npy` is **ensemble mean only**. `--skip-invalid` skips sections that fall outside the grid, exceed the native-grid distance tolerance, or have missing values. Without it, those sections raise an error.
 
 ## Local 3D NetCDF (test your own model data)
 
