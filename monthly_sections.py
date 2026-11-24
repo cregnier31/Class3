@@ -1,6 +1,11 @@
 """Monthly native-grid section means, one 2x2 figure per lead and variable."""
 import argparse
-from concurrent.futures import ProcessPoolExecutor
+import os
+import time
+import hashlib
+for _thread_var in ('OMP_NUM_THREADS','OPENBLAS_NUM_THREADS','MKL_NUM_THREADS','NUMEXPR_NUM_THREADS'):
+    os.environ.setdefault(_thread_var,'1')
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from multiprocessing import get_context
 import ast
 import configparser
@@ -88,6 +93,8 @@ def process_models(args, pairs, sections, systems):
     # Accumulate only extracted sections, not global monthly fields.
     acc={}
     for system in systems:
+        started=time.monotonic()
+        print(f'START {system}',flush=True)
         maskpath=Path(args.mask_dir)/MASK_PATHS[system].name if args.mask_dir else MASK_PATHS[system]
         with xr.open_dataset(maskpath) as md:
             mask=md[next(n for n in MASK_CANDIDATES if n in md)].squeeze(drop=True)
@@ -97,6 +104,7 @@ def process_models(args, pairs, sections, systems):
             grid=None
             def consume(raw,date,lead,index,stamp):
                 nonlocal cached,grid
+                tick=time.monotonic()
                 fields=detect_fields(raw,system)
                 ds,_=prepare_ts(raw,fields,system)
                 ds=ds.isel(time=0,drop=True)
@@ -119,7 +127,7 @@ def process_models(args, pairs, sections, systems):
                         total[good]+=a.values[good]
                         count[good]+=1
                         used.append(dict(initialization_date=date,lead_index=index,valid_time=stamp))
-                print(system,date,lead,flush=True)
+                print(system,date,lead,f'{time.monotonic()-tick:.1f}s',flush=True)
             for plan in pairs:
                 if system=='GLOENS':
                     for lead in args.leads:
@@ -132,17 +140,43 @@ def process_models(args, pairs, sections, systems):
                         for lead in args.leads:
                             date,index,stamp=plan[system,lead]
                             consume(raw.isel(time=slice(index,index+1)),date,lead,index,stamp)
+        print(f'DONE extraction {system}: {time.monotonic()-started:.1f}s',flush=True)
     return acc
+
+def checkpoint(args,pairs,sections,system):
+    # Match scientific inputs and paired dates, not plotting or worker options.
+    spec=dict(system=system,pairs=[sorted((list(k),v) for k,v in p.items()) for p in pairs],
+              sections=sections,leads=args.leads,variables=args.variables,
+              min_runs=args.min_runs,spacing=args.spacing_km,tolerance=args.max_distance_km,
+              grid=str(args.grid_file),mask=str(args.mask_dir),npy=str(args.npy_dir),endpoint=args.endpoint)
+    digest=hashlib.sha256(json.dumps(spec,sort_keys=True).encode()).hexdigest()
+    return Path(args.output)/args.month/'.checkpoints'/f'{system}_{digest}.done'
+
+def model_job(args,pairs,sections,system):
+    marker=checkpoint(args,pairs,sections,system)
+    paths=[Path(args.output)/args.month/safe_name(n)/f'{system}_{v}_lead{l:03d}.nc'
+           for n in sections for v in args.variables for l in args.leads]
+    if args.resume and marker.is_file() and all(p.is_file() for p in paths):
+        print(f'RESUME {system}: completed',flush=True)
+        return system
+    # Invalidate old markers before overwriting shared model outputs.
+    marker.parent.mkdir(parents=True,exist_ok=True)
+    for old in marker.parent.glob(f'{system}_*.done'):
+        old.unlink()
+    save_means(args,args.month,process_models(args,pairs,sections,(system,)))
+    marker.write_text('complete\n')
+    print(f'SAVED {system}',flush=True)
+    return system
 
 def process(args,pairs,sections):
     if args.workers==1:
-        return process_models(args,pairs,sections,SYSTEMS)
-    acc={}
-    with ProcessPoolExecutor(max_workers=min(args.workers,len(SYSTEMS)),mp_context=get_context('spawn')) as pool:
-        jobs=[pool.submit(process_models,args,pairs,sections,(system,)) for system in SYSTEMS]
-        for job in jobs:
-            acc.update(job.result())
-    return acc
+        for system in SYSTEMS:
+            model_job(args,pairs,sections,system)
+    else:
+        with ProcessPoolExecutor(max_workers=min(args.workers,len(SYSTEMS)),mp_context=get_context('spawn')) as pool:
+            jobs=[pool.submit(model_job,args,pairs,sections,system) for system in SYSTEMS]
+            for job in as_completed(jobs):
+                job.result()
 
 def geo(v,positive,negative):
     return f'{abs(v):.0f}°{positive if v>=0 else negative}'
@@ -164,17 +198,17 @@ def add_locator(fig,lon,lat,name):
     globe.plot(lon,lat,color='red',linewidth=1.6,transform=ccrs.Geodetic())
     globe.set_title(name,fontsize=13)
 
-def output(args,month,acc):
-    means={}
+def save_means(args,month,acc):
     for key,(template,total,count,dates) in acc.items():
         a=template.copy(data=np.divide(total,count,out=np.full(total.shape,np.nan),where=count>=args.min_runs))
         a.attrs.update(initialization_month=month,initialization_dates=','.join(d['initialization_date'] for d in dates),run_count=len(dates), actual_lead_indices=','.join(str(d['lead_index']) for d in dates), valid_times=','.join(d['valid_time'] for d in dates), temporal_alignment='Same forecast lead index; valid dates may differ', reference_lead_index=key[1], run_metadata=json.dumps(dates))
-        means[key]=a
         system,lead,name,var=key
         folder=Path(args.output)/month/safe_name(name)
         folder.mkdir(parents=True,exist_ok=True)
-        xr.Dataset({var:a,'valid_run_count':(('depth','station'),count)}).to_netcdf(folder/f'{system}_{var}_lead{lead:03d}.nc')
-    plot_means(args,month,means)
+        path=folder/f'{system}_{var}_lead{lead:03d}.nc'
+        tmp=path.with_suffix('.nc.tmp')
+        xr.Dataset({var:a,'valid_run_count':(('depth','station'),count)}).to_netcdf(tmp)
+        tmp.replace(path)
 
 def plot_means(args,month,means):
     if args.plot_workers==1:
@@ -339,13 +373,17 @@ def main():
     p.add_argument('--contour-darkening',type=float,default=.4,choices=None,help='Fraction of RGB intensity removed in colorbar-dark mode (0 to 1)')
     p.add_argument('--contour-max-linewidth',type=float,default=3.0)
     p.add_argument('--contour-linewidth',type=float,default=.5)
+    p.add_argument('--resume',action='store_true',help='Skip completed model checkpoints matching this run')
+    p.add_argument('--compute-only',action='store_true',help='Write monthly NetCDF without plotting')
     p.add_argument('--plot-only',action='store_true',help='Regenerate PNGs from existing monthly NetCDF files')
     p.add_argument('--output',default='monthly_results_same_lead')
-    p.add_argument('--workers',type=int,default=4,help='Parallel model processes (1 for sequential)')
-    p.add_argument('--plot-workers',type=int,default=8,help='Parallel section plotting processes (1 for sequential)')
+    p.add_argument('--workers',type=int,default=2,help='Parallel model processes (1 for sequential)')
+    p.add_argument('--plot-workers',type=int,default=2,help='Parallel section plotting processes (1 for sequential)')
     args=p.parse_args()
     if args.workers<1 or args.plot_workers<1:
         p.error('Worker counts must be positive')
+    if args.plot_only and args.compute_only:
+        p.error('--plot-only and --compute-only are mutually exclusive')
     if args.plot_only:
         sections=read_sections(args.sections)
         if args.section: sections={n:sections[n] for n in args.section}
@@ -357,7 +395,9 @@ def main():
     sections=read_sections(args.sections)
     if args.section: sections={n:sections[n] for n in args.section}
     print('Common initialization dates:',dates,flush=True)
-    output(args,args.month,process(args,preflight(args,dates),sections))
+    process(args,preflight(args,dates),sections)
+    if not args.compute_only:
+        plot_means(args,args.month,load_monthly_means(args,sections))
 
 if __name__=='__main__':
     main()
