@@ -244,7 +244,7 @@ def plot_means(args,month,means):
                     ax.set_ylabel('Depth (m)',fontsize=15,fontweight='bold')
                     ax.tick_params(axis='both',labelsize=14)
                     sec.tick_params(axis='x',labelsize=14)
-                    ax.set_title(f'{system} | {a.attrs["run_count"]} runs | index {a.attrs.get("actual_lead_indices",str(lead)).split(",")[0]}',fontweight='bold',fontsize=17)
+                    ax.set_title(f'{system} | {a.attrs["run_count"]} runs | leadtime {lead} days',fontweight='bold',fontsize=17)
                     good=a.values[np.isfinite(a.values)]
                     if good.size:
                         ax.text(.5,-.36,f'Min {good.min():.2f}   Mean {good.mean():.2f}   Max {good.max():.2f}',transform=ax.transAxes,ha='center',fontsize=13)
