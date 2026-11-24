@@ -143,7 +143,7 @@ def add_locator(fig,lon,lat):
     else:
         center_lon=np.degrees(np.arctan2(xyz[1],xyz[0]))
         center_lat=np.degrees(np.arctan2(xyz[2],np.hypot(xyz[0],xyz[1])))
-    globe=fig.add_axes([.89,.025,.095,.13],projection=ccrs.Orthographic(center_lon,center_lat))
+    globe=fig.add_axes([.85,.14,.12,.16],projection=ccrs.Orthographic(center_lon,center_lat))
     globe.set_global()
     globe.add_feature(cfeature.OCEAN.with_scale('110m'),facecolor='#a6cee3')
     globe.add_feature(cfeature.LAND.with_scale('110m'),facecolor='#e4dfc5')
@@ -169,16 +169,22 @@ def plot_means(args,month,means):
         raise FileNotFoundError(args.params)
     cmin=ast.literal_eval(cfg['dict']['cmin'])
     cmax=ast.literal_eval(cfg['dict']['cmax'])
-    cmap_name=args.cmap or ast.literal_eval(cfg['dict']['colormap'])['']
-    if cmap_name=='IDL_micom34':
-        rgb=np.loadtxt(Path(__file__).with_name('IDL_micom34.pal'))
-        if rgb.ndim!=2 or rgb.shape[1]!=3 or np.any((rgb<0)|(rgb>255)):
-            raise ValueError('Invalid IDL RGB palette')
-        cmap=ListedColormap(rgb/255.,name=cmap_name)
-    else:
-        cmap=plt.get_cmap(cmap_name)
+    def get_palette(var):
+        cmap_name=args.cmap or ('thermal' if var=='thetao' else 'haline')
+        if cmap_name=='IDL_micom34':
+            rgb=np.loadtxt(Path(__file__).with_name('IDL_micom34.pal'))
+            if rgb.ndim!=2 or rgb.shape[1]!=3 or np.any((rgb<0)|(rgb>255)):
+                raise ValueError('Invalid IDL RGB palette')
+            cmap=ListedColormap(rgb/255.,name=cmap_name)
+        elif cmap_name in ('thermal','haline'):
+            import cmocean
+            cmap=getattr(cmocean.cm,cmap_name)
+        else:
+            cmap=plt.get_cmap(cmap_name)
+        return cmap
     for name in sorted({k[2] for k in means}):
         for var in args.variables:
+            cmap=get_palette(var)
             all_arrays=[a.values for k,a in means.items() if k[2:]==(name,var)]
             finite=np.concatenate([v[np.isfinite(v)] for v in all_arrays])
             if not finite.size:
@@ -198,12 +204,14 @@ def plot_means(args,month,means):
                 print(f'WARNING: no configured limits for {name} {field}; using data range',flush=True)
                 if low==high: high=low+step
             if high<=low: raise ValueError(f'Invalid color limits for {name} {field}')
-            levels=np.r_[low+np.arange(int(np.ceil((high-low)/step)))*step,high]
-            levels=levels[np.r_[True,np.diff(levels)>1e-9]]
+            interior=np.arange(np.floor(low/step)+1,np.ceil(high/step))*step
+            levels=np.r_[low,interior[(interior>low+1e-9)&(interior<high-1e-9)],high]
+            tickstep=1. if var=='thetao' else .5
+            cb_ticks=np.arange(np.ceil(low/tickstep),np.floor(high/tickstep)+1)*tickstep
             print(f'Color limits {name} {field}: {low:g}, {high:g}',flush=True)
             for lead in args.leads:
                 fig,axes=plt.subplots(2,2,figsize=(16,12))
-                fig.subplots_adjust(left=.07,right=.86,bottom=.15,top=.91,wspace=.25,hspace=.60)
+                fig.subplots_adjust(left=.07,right=.81,bottom=.15,top=.91,wspace=.25,hspace=.60)
                 for ax,system in zip(axes.flat,SYSTEMS):
                     a=means[system,lead,name,var]
                     d=a.distance_km.values
@@ -225,7 +233,8 @@ def plot_means(args,month,means):
                     good=a.values[np.isfinite(a.values)]
                     if good.size:
                         ax.text(.5,-.34,f'Min {good.min():.2f}   Mean {good.mean():.2f}   Max {good.max():.2f}',transform=ax.transAxes,ha='center',fontsize=9)
-                fig.colorbar(cs,ax=axes.ravel().tolist(),label='Temperature (°C)' if var=='thetao' else 'Salinity',shrink=.70,ticks=levels[::3],format=mticker.FormatStrFormatter('%g'))
+                cax=fig.add_axes([.845,.34,.022,.55])
+                fig.colorbar(cs,cax=cax,label='Temperature (°C)' if var=='thetao' else 'Salinity (PSU)',ticks=cb_ticks,spacing='proportional',format=mticker.FormatStrFormatter('%g'))
                 add_locator(fig,a.longitude.values,a.latitude.values)
                 fig.suptitle(f'{name} | {var} | {month} | GLOENS lead {lead} | same valid day',fontweight='bold',fontsize=16)
                 fig.savefig(Path(args.output)/month/safe_name(name)/f'{var}_lead{lead:03d}_multimodel.png',dpi=160)
@@ -264,8 +273,8 @@ def main():
     p.add_argument('--max-distance-km',type=float,default=150)
     p.add_argument('--max-depth',type=float,default=2000)
     p.add_argument('--min-depth',type=float,default=0)
-    p.add_argument('--temperature-step',type=float,default=2)
-    p.add_argument('--salinity-step',type=float,default=.2)
+    p.add_argument('--temperature-step',type=float,default=.25)
+    p.add_argument('--salinity-step',type=float,default=.125)
     p.add_argument('--temperature-range',nargs=2,type=float)
     p.add_argument('--salinity-range',nargs=2,type=float)
     p.add_argument('--endpoint',default=ENDPOINT)
