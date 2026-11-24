@@ -149,7 +149,7 @@ def add_locator(fig,lon,lat):
     globe.add_feature(cfeature.LAND.with_scale('110m'),facecolor='#e4dfc5')
     globe.coastlines(resolution='110m',linewidth=.35)
     globe.plot(lon,lat,color='red',linewidth=1.6,transform=ccrs.Geodetic())
-    globe.set_title('Section location',fontsize=8)
+    globe.set_title('Section location',fontsize=13)
 
 def output(args,month,acc):
     means={}
@@ -210,8 +210,8 @@ def plot_means(args,month,means):
             cb_ticks=np.arange(np.ceil(low/tickstep),np.floor(high/tickstep)+1)*tickstep
             print(f'Color limits {name} {field}: {low:g}, {high:g}',flush=True)
             for lead in args.leads:
-                fig,axes=plt.subplots(2,2,figsize=(16,12))
-                fig.subplots_adjust(left=.07,right=.81,bottom=.15,top=.91,wspace=.25,hspace=.60)
+                fig,axes=plt.subplots(2,2,figsize=(19,14))
+                fig.subplots_adjust(left=.07,right=.81,bottom=.14,top=.90,wspace=.28,hspace=.65)
                 for ax,system in zip(axes.flat,SYSTEMS):
                     a=means[system,lead,name,var]
                     d=a.distance_km.values
@@ -222,22 +222,27 @@ def plot_means(args,month,means):
                     ticks=[v for v in (0,20,50,100,200,500,1000,2000,5000) if args.min_depth<=v<=args.max_depth]
                     ax.set_yticks(ticks,labels=[str(v) for v in ticks])
                     idx=np.linspace(0,len(d)-1,6).astype(int)
-                    ax.set_xticks(d[idx],labels=[geo(a.longitude.values[i],'E','W') for i in idx],fontsize=8)
-                    ax.set_xlabel('Longitude')
+                    ax.set_xticks(d[idx],labels=[geo(a.longitude.values[i],'E','W') for i in idx],fontsize=13)
+                    ax.set_xlabel('Longitude',fontsize=15,fontweight='bold')
                     sec=ax.secondary_xaxis('bottom')
-                    sec.spines['bottom'].set_position(('outward',32))
-                    sec.set_xticks(d[idx],labels=[geo(a.latitude.values[i],'N','S') for i in idx],fontsize=8)
-                    sec.set_xlabel('Latitude')
-                    ax.set_ylabel('Depth (m)')
-                    ax.set_title(f'{system} | {a.attrs["run_count"]} runs | index {a.attrs.get("actual_lead_indices",str(lead)).split(",")[0]}',fontweight='bold')
+                    sec.spines['bottom'].set_position(('outward',42))
+                    sec.set_xticks(d[idx],labels=[geo(a.latitude.values[i],'N','S') for i in idx],fontsize=13)
+                    sec.set_xlabel('Latitude',fontsize=15,fontweight='bold')
+                    ax.set_ylabel('Depth (m)',fontsize=15,fontweight='bold')
+                    ax.tick_params(axis='both',labelsize=14)
+                    sec.tick_params(axis='x',labelsize=14)
+                    ax.set_title(f'{system} | {a.attrs["run_count"]} runs | index {a.attrs.get("actual_lead_indices",str(lead)).split(",")[0]}',fontweight='bold',fontsize=17)
                     good=a.values[np.isfinite(a.values)]
                     if good.size:
-                        ax.text(.5,-.34,f'Min {good.min():.2f}   Mean {good.mean():.2f}   Max {good.max():.2f}',transform=ax.transAxes,ha='center',fontsize=9)
+                        ax.text(.5,-.36,f'Min {good.min():.2f}   Mean {good.mean():.2f}   Max {good.max():.2f}',transform=ax.transAxes,ha='center',fontsize=13)
                 cax=fig.add_axes([.845,.34,.022,.55])
-                fig.colorbar(cs,cax=cax,label='Temperature (°C)' if var=='thetao' else 'Salinity (PSU)',ticks=cb_ticks,spacing='proportional',format=mticker.FormatStrFormatter('%g'))
+                cb=fig.colorbar(cs,cax=cax,label='Temperature (°C)' if var=='thetao' else 'Salinity (PSU)',ticks=cb_ticks,spacing='proportional',format=mticker.FormatStrFormatter('%g'))
+                cb.ax.tick_params(labelsize=14)
+                cb.ax.yaxis.label.set_size(16)
+                cb.ax.yaxis.label.set_weight('bold')
                 add_locator(fig,a.longitude.values,a.latitude.values)
-                fig.suptitle(f'{name} | {var} | {month} | GLOENS lead {lead} | same valid day',fontweight='bold',fontsize=16)
-                fig.savefig(Path(args.output)/month/safe_name(name)/f'{var}_lead{lead:03d}_multimodel.png',dpi=160)
+                fig.suptitle(f'{name} | {var} | {month} | GLOENS lead {lead} | same valid day',fontweight='bold',fontsize=22)
+                fig.savefig(Path(args.output)/month/safe_name(name)/f'{var}_lead{lead:03d}_multimodel.png',dpi=200)
                 plt.close(fig)
 
 def load_monthly_means(args,sections):
