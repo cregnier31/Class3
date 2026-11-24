@@ -227,9 +227,14 @@ def plot_means(args,month,means):
                             line_levels=np.arange(np.ceil(low/line_step),np.floor(high/line_step)+1)*line_step
                             line_levels=line_levels[(line_levels>values.min())&(line_levels<values.max())]
                             if line_levels.size:
+                                line_colors=args.contour_color
+                                if args.contour_color in ('colorbar','colorbar-dark'):
+                                    line_colors=cs.cmap(cs.norm(line_levels))
+                                    if args.contour_color=='colorbar-dark':
+                                        line_colors[:,:3]*=1-np.clip(args.contour_darkening,0,1)
                                 ax.contour(d,z,np.ma.masked_invalid(a.values),levels=line_levels,
-                                           colors=cs.cmap(cs.norm(line_levels)) if args.contour_color=='colorbar' else args.contour_color,linewidths=args.contour_linewidth+(args.contour_max_linewidth-args.contour_linewidth)*np.clip((line_levels-low)/max(high-low,1e-12),0,1),
-                                           linestyles='solid',alpha=.8,corner_mask=False)
+                                           colors=line_colors,linewidths=args.contour_linewidth+(args.contour_max_linewidth-args.contour_linewidth)*np.clip((line_levels-low)/max(high-low,1e-12),0,1),
+                                           linestyles='solid',alpha=1.,corner_mask=False)
                     ax.set_ylim(args.max_depth,args.min_depth)
                     ax.set_yscale('symlog',linthresh=20)
                     ticks=[v for v in (0,20,50,100,200,500,1000,2000,5000) if args.min_depth<=v<=args.max_depth]
@@ -302,7 +307,8 @@ def main():
     p.add_argument('--no-contours',action='store_true',help='Disable contour lines')
     p.add_argument('--temperature-contour-step',type=float,default=2.)
     p.add_argument('--salinity-contour-step',type=float,default=.25)
-    p.add_argument('--contour-color',default='colorbar',help='Contour line color: colorbar, white, black or another Matplotlib color')
+    p.add_argument('--contour-color',default='colorbar-dark',help='Contour line color: colorbar-dark, colorbar, white, black or another Matplotlib color')
+    p.add_argument('--contour-darkening',type=float,default=.4,choices=None,help='Fraction of RGB intensity removed in colorbar-dark mode (0 to 1)')
     p.add_argument('--contour-max-linewidth',type=float,default=1.2)
     p.add_argument('--contour-linewidth',type=float,default=.5)
     p.add_argument('--plot-only',action='store_true',help='Regenerate PNGs from existing monthly NetCDF files')
