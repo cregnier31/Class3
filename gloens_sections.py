@@ -37,10 +37,22 @@ def read_sections(path):
     if not isinstance(sections,dict) or not sections:
         raise ValueError('Expected nonempty section mapping')
     for name,cfg in sections.items():
+        if 'lonvalues' in cfg or 'latvalues' in cfg:
+            lo=np.asarray(cfg.get('lonvalues',[]),dtype=float)
+            la=np.asarray(cfg.get('latvalues',[]),dtype=float)
+            if lo.ndim!=1 or lo.shape!=la.shape or lo.size<2 or not np.all(np.isfinite(lo)) or not np.all(np.isfinite(la)) or np.any(np.abs(la)>90):
+                raise ValueError(f'{name}: invalid explicit route')
+            continue
         for k in ('lonmin','lonmax','latmin','latmax'):
             if k not in cfg or not np.isfinite(float(cfg[k])):
                 raise ValueError(f'{name}: invalid {k}')
     return sections
+
+def section_route(cfg, spacing):
+    if 'lonvalues' in cfg:
+        return np.asarray(cfg['lonvalues'],dtype=float),np.asarray(cfg['latvalues'],dtype=float)
+    return great_circle(cfg['lonmin'],cfg['latmin'],cfg['lonmax'],cfg['latmax'],spacing)
+
 
 def to_xyz(lon,lat):
     lon,lat=np.deg2rad(np.broadcast_arrays(lon,lat))
@@ -194,7 +206,7 @@ def run(args):
                 routes={}
                 for name,cfg in sections.items():
                     try:
-                        route=great_circle(cfg['lonmin'],cfg['latmin'],cfg['lonmax'],cfg['latmax'],args.spacing_km)
+                        route=section_route(cfg,args.spacing_km)
                         routes[name]=native_indices(lon.values,lat.values,wet,*route,args.max_distance_km)
                     except ValueError as exc:
                         if not args.skip_invalid:
