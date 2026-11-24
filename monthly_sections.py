@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 from matplotlib.colors import ListedColormap
 from scipy.spatial import cKDTree
-from gloens_sections import read_sections, great_circle, to_xyz, safe_name
+from gloens_sections import read_sections, section_route, to_xyz, safe_name
 from physical_stability.forecasts import (SYSTEMS, ENDPOINT, forecast_store,
     open_cloudferro, detect_fields, prepare_ts)
 from physical_stability.gloens_npy import load_gloens_mean, DEFAULT_GLOENS_GRID
@@ -25,7 +25,7 @@ def routes(ds, sections, spacing, tolerance):
     tree=cKDTree(to_xyz(lon[valid],lat[valid]))
     result={}
     for name,c in sections.items():
-        lo,la=great_circle(c['lonmin'],c['latmin'],c['lonmax'],c['latmax'],spacing)
+        lo,la=section_route(c,spacing)
         xyz=to_xyz(lo,la)
         chord,idx=tree.query(xyz)
         dist=np.r_[0,np.cumsum(12742*np.arcsin(np.clip(np.linalg.norm(np.diff(xyz,axis=0),axis=1)/2,0,1)))]
@@ -165,6 +165,7 @@ def output(args,month,acc):
     plot_means(args,month,means)
 
 def plot_means(args,month,means):
+    section_configs=read_sections(args.sections)
     cfg=configparser.ConfigParser(interpolation=None)
     if not cfg.read(args.params):
         raise FileNotFoundError(args.params)
@@ -184,6 +185,7 @@ def plot_means(args,month,means):
             cmap=plt.get_cmap(cmap_name)
         return cmap
     for name in sorted({k[2] for k in means}):
+        max_depth=min(args.max_depth,float(section_configs[name].get('max_depth',args.max_depth)))
         for var in args.variables:
             cmap=get_palette(var)
             all_arrays=[a.values for k,a in means.items() if k[2:]==(name,var)]
@@ -235,9 +237,9 @@ def plot_means(args,month,means):
                                 ax.contour(d,z,np.ma.masked_invalid(a.values),levels=line_levels,
                                            colors=line_colors,linewidths=args.contour_linewidth+(args.contour_max_linewidth-args.contour_linewidth)*np.clip((line_levels-low)/max(high-low,1e-12),0,1),
                                            linestyles=args.contour_linestyle,alpha=1.,corner_mask=False)
-                    ax.set_ylim(args.max_depth,args.min_depth)
+                    ax.set_ylim(max_depth,args.min_depth)
                     ax.set_yscale('symlog',linthresh=20)
-                    ticks=[v for v in (0,20,50,100,200,500,1000,2000,5000) if args.min_depth<=v<=args.max_depth]
+                    ticks=[v for v in (0,20,50,100,200,500,1000,2000,5000) if args.min_depth<=v<=max_depth]
                     ax.set_yticks(ticks,labels=[str(v) for v in ticks])
                     idx=np.linspace(0,len(d)-1,6).astype(int)
                     ax.set_xticks(d[idx],labels=[geo(a.longitude.values[i],'E','W') for i in idx],fontsize=13)
