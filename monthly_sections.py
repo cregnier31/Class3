@@ -1,6 +1,7 @@
 """Monthly native-grid section means, one 2x2 figure per lead and variable."""
 import argparse
-from collections import defaultdict
+from datetime import datetime, timedelta
+import json
 from pathlib import Path
 import re
 import numpy as np
@@ -38,7 +39,45 @@ def extract(ds, route, mask, var):
         'station':np.arange(len(y)),'longitude':('station',lo),'latitude':('station',la),
         'distance_km':('station',d)},attrs=dict(ds[var].attrs),name=var)
 
-def process(args, dates, sections):
+def preflight(args, dates):
+    """Pair Thursday GLOENS runs with previous-day remote stores by valid day."""
+    pairs=[]
+    for date in dates:
+        remote=(datetime.strptime(date,'%Y%m%d')-timedelta(days=1)).strftime('%Y%m%d')
+        targets={lead:np.datetime64(datetime.strptime(date,'%Y%m%d'),'D')+np.timedelta64(lead,'D') for lead in args.leads}
+        plan={}
+        try:
+            for lead in args.leads:
+                with load_gloens_mean(args.npy_dir,args.grid_file,date,lead,include_currents=False) as raw:
+                    stamp=np.datetime64(raw.time.values[0])
+                    if stamp.astype('datetime64[D]')!=targets[lead]:
+                        raise ValueError(f'GLOENS unexpected valid date {stamp}')
+                    plan['GLOENS',lead]=(date,lead,str(stamp))
+            for system in SYSTEMS:
+                if system=='GLOENS': continue
+                with open_cloudferro(forecast_store(system,remote),endpoint=args.endpoint,anonymous=not args.authenticated) as raw:
+                    times=np.asarray(raw.time.values)
+                    for lead,target in targets.items():
+                        idx=np.flatnonzero(times.astype('datetime64[D]')==target)
+                        if len(idx)!=1:
+                            raise ValueError(f'{system}: expected one valid time on {target}')
+                        i=int(idx[0])
+                        plan[system,lead]=(remote,i,str(times[i]))
+        except (FileNotFoundError, KeyError, ValueError) as exc:
+            print(f'SKIP weekly pair {date}: {exc}',flush=True)
+            continue
+        except Exception as exc:
+            from zarr.errors import GroupNotFoundError
+            if not isinstance(exc,GroupNotFoundError): raise
+            print(f'SKIP weekly pair {date}: {exc}',flush=True)
+            continue
+        pairs.append(plan)
+        print('Paired week',date,plan,flush=True)
+    if len(pairs)<args.min_runs:
+        raise ValueError(f'Only {len(pairs)} complete weekly pairs; need {args.min_runs}')
+    return pairs
+
+def process(args, pairs, sections):
     # Accumulate only extracted sections, not global monthly fields.
     acc={}
     for system in SYSTEMS:
@@ -49,7 +88,7 @@ def process(args, dates, sections):
                 raise ValueError(f'{system}: invalid mask dimensions')
             cached=None
             grid=None
-            def consume(raw,date,lead):
+            def consume(raw,date,lead,index,stamp):
                 nonlocal cached,grid
                 fields=detect_fields(raw,system)
                 ds,_=prepare_ts(raw,fields,system)
@@ -72,17 +111,20 @@ def process(args, dates, sections):
                         good=np.isfinite(a.values)
                         total[good]+=a.values[good]
                         count[good]+=1
-                        used.append(date)
+                        used.append(dict(initialization_date=date,lead_index=index,valid_time=stamp))
                 print(system,date,lead,flush=True)
-            for date in dates:
+            for plan in pairs:
                 if system=='GLOENS':
                     for lead in args.leads:
-                        raw=load_gloens_mean(args.npy_dir,args.grid_file,date,lead,include_currents=False)
-                        consume(raw,date,lead)
+                        date,index,stamp=plan[system,lead]
+                        with load_gloens_mean(args.npy_dir,args.grid_file,date,index,include_currents=False) as raw:
+                            consume(raw,date,lead,index,stamp)
                 else:
+                    date=plan[system,args.leads[0]][0]
                     with open_cloudferro(forecast_store(system,date),endpoint=args.endpoint,anonymous=not args.authenticated) as raw:
                         for lead in args.leads:
-                            consume(raw.isel(time=slice(lead,lead+1)),date,lead)
+                            date,index,stamp=plan[system,lead]
+                            consume(raw.isel(time=slice(index,index+1)),date,lead,index,stamp)
     return acc
 
 def geo(v,positive,negative):
@@ -92,7 +134,7 @@ def output(args,month,acc):
     means={}
     for key,(template,total,count,dates) in acc.items():
         a=template.copy(data=np.divide(total,count,out=np.full(total.shape,np.nan),where=count>=args.min_runs))
-        a.attrs.update(initialization_month=month,initialization_dates=','.join(dates),run_count=len(dates))
+        a.attrs.update(initialization_month=month,initialization_dates=','.join(d['initialization_date'] for d in dates),run_count=len(dates), actual_lead_indices=','.join(str(d['lead_index']) for d in dates), valid_times=','.join(d['valid_time'] for d in dates), temporal_alignment='Same calendar day; no time interpolation', reference_lead_index=key[1], run_metadata=json.dumps(dates))
         means[key]=a
         system,lead,name,var=key
         folder=Path(args.output)/month/safe_name(name)
@@ -124,12 +166,12 @@ def output(args,month,acc):
                     ax.set_xticks(d[idx],labels=[geo(a.longitude.values[i],'E','W')+' / '+geo(a.latitude.values[i],'N','S') for i in idx],fontsize=8)
                     ax.set_xlabel('Longitude / latitude')
                     ax.set_ylabel('Depth (m)')
-                    ax.set_title(f'{system} | {a.attrs["run_count"]} runs',fontweight='bold')
+                    ax.set_title(f'{system} | {a.attrs["run_count"]} runs | index {a.attrs["actual_lead_indices"].split(",")[0]}',fontweight='bold')
                     good=a.values[np.isfinite(a.values)]
                     if good.size:
                         ax.text(.5,-.20,f'Min {good.min():.2f}   Mean {good.mean():.2f}   Max {good.max():.2f}',transform=ax.transAxes,ha='center',fontsize=9)
                 fig.colorbar(cs,ax=axes.ravel().tolist(),label='Temperature (°C)' if var=='thetao' else 'Salinity',shrink=.85)
-                fig.suptitle(f'{name} | {var} | {month} | Lead {lead}',fontweight='bold',fontsize=16)
+                fig.suptitle(f'{name} | {var} | {month} | GLOENS lead {lead} | same valid day',fontweight='bold',fontsize=16)
                 fig.savefig(Path(args.output)/month/safe_name(name)/f'{var}_lead{lead:03d}_multimodel.png',dpi=160)
                 plt.close(fig)
 
@@ -141,7 +183,7 @@ def main():
     p.add_argument('--sections',default='def_section.yaml')
     p.add_argument('--section',action='append')
     p.add_argument('--month',required=True,help='YYYYMM initialization month')
-    p.add_argument('--dates',nargs='+',help='Explicit common initialization dates YYYYMMDD')
+    p.add_argument('--dates',nargs='+',help='Explicit GLOENS initialization dates YYYYMMDD')
     p.add_argument('--leads',nargs='+',type=int,default=[1,3,5,7])
     p.add_argument('--variables',nargs='+',choices=['thetao','so'],default=['thetao','so'])
     p.add_argument('--min-runs',type=int,default=3)
@@ -160,7 +202,7 @@ def main():
     sections=read_sections(args.sections)
     if args.section: sections={n:sections[n] for n in args.section}
     print('Common initialization dates:',dates,flush=True)
-    output(args,args.month,process(args,dates,sections))
+    output(args,args.month,process(args,preflight(args,dates),sections))
 
 if __name__=='__main__':
     main()
