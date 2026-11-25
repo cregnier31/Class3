@@ -321,7 +321,7 @@ def plot_sections(args,month,means):
                 cb.ax.yaxis.label.set_weight('bold')
                 add_locator(fig,a.longitude.values,a.latitude.values,name)
                 fig.suptitle(f'{name} | {var} | {month} | Forecast lead D+{lead} | same leadtime',fontweight='bold',fontsize=22)
-                fig.savefig(Path(args.output)/month/safe_name(name)/f'FQC_CLASS3_multimodel_{field}_{max_depth:g}m_{month}_FCST{lead}_{safe_name(name)}_raw.png',dpi=200)
+                fig.savefig(Path(args.output)/month/safe_name(name)/f'FQC_CLASS3_multimodel_{field}_{max_depth:g}m_R{month}_FCST{lead}_{safe_name(name)}_raw.png',dpi=200)
                 plt.close(fig)
 
 def load_monthly_means(args,sections):
